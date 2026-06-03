@@ -1,0 +1,126 @@
+name: Deploy Vapi Assistant
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'deploy'
+        type: choice
+        options:
+          - deploy
+          - dry-run
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vapi-control-vercel
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: vapi-control-vercel/package-lock.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Dry run (print rendered assistant JSON)
+        if: ${{ github.event.inputs.action == 'dry-run' }}
+        env:
+          COMPANY_NAME:          ${{ secrets.COMPANY_NAME }}
+          LLM_PROVIDER:          ${{ secrets.LLM_PROVIDER }}
+          LLM_MODEL:             ${{ secrets.LLM_MODEL }}
+          VAPI_VOICE_PROVIDER:   ${{ secrets.VAPI_VOICE_PROVIDER }}
+          VAPI_VOICE_ID:         ${{ secrets.VAPI_VOICE_ID }}
+          VAPI_VOICE_SPEED:      ${{ secrets.VAPI_VOICE_SPEED }}
+          STT_PROVIDER:          ${{ secrets.STT_PROVIDER }}
+          STT_MODEL:             ${{ secrets.STT_MODEL }}
+          VERIFIER_NUMBER:       ${{ secrets.VERIFIER_NUMBER }}
+          SERVER_URL:            ${{ secrets.SERVER_URL }}
+          SERVER_SECRET:         ${{ secrets.SERVER_SECRET }}
+          SYSTEM_PROMPT:         ${{ secrets.SYSTEM_PROMPT }}
+        run: npm run render
+
+      - name: Deploy assistant to Vapi
+        if: ${{ github.event.inputs.action == 'deploy' }}
+        env:
+          VAPI_PRIVATE_KEY:      ${{ secrets.VAPI_PRIVATE_KEY }}
+          VAPI_API_BASE:         https://api.vapi.ai
+          VAPI_ASSISTANT_ID:     ${{ secrets.VAPI_ASSISTANT_ID }}
+          COMPANY_NAME:          ${{ secrets.COMPANY_NAME }}
+          LLM_PROVIDER:          ${{ secrets.LLM_PROVIDER }}
+          LLM_MODEL:             ${{ secrets.LLM_MODEL }}
+          VAPI_VOICE_PROVIDER:   ${{ secrets.VAPI_VOICE_PROVIDER }}
+          VAPI_VOICE_ID:         ${{ secrets.VAPI_VOICE_ID }}
+          VAPI_VOICE_SPEED:      ${{ secrets.VAPI_VOICE_SPEED }}
+          STT_PROVIDER:          ${{ secrets.STT_PROVIDER }}
+          STT_MODEL:             ${{ secrets.STT_MODEL }}
+          VERIFIER_NUMBER:       ${{ secrets.VERIFIER_NUMBER }}
+          SERVER_URL:            ${{ secrets.SERVER_URL }}
+          SERVER_SECRET:         ${{ secrets.SERVER_SECRET }}
+          SYSTEM_PROMPT:         ${{ secrets.SYSTEM_PROMPT }}
+        run: npm run deploy
+
+      - name: Update Vercel env vars via API
+        if: ${{ github.event.inputs.action == 'deploy' }}
+        env:
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VAPI_PRIVATE_KEY:  ${{ secrets.VAPI_PRIVATE_KEY }}
+          COMPANY_NAME:      ${{ secrets.COMPANY_NAME }}
+          LLM_PROVIDER:      ${{ secrets.LLM_PROVIDER }}
+          LLM_MODEL:         ${{ secrets.LLM_MODEL }}
+          VAPI_VOICE_PROVIDER: ${{ secrets.VAPI_VOICE_PROVIDER }}
+          VAPI_VOICE_ID:     ${{ secrets.VAPI_VOICE_ID }}
+          VAPI_VOICE_SPEED:  ${{ secrets.VAPI_VOICE_SPEED }}
+          STT_PROVIDER:      ${{ secrets.STT_PROVIDER }}
+          STT_MODEL:         ${{ secrets.STT_MODEL }}
+          VERIFIER_NUMBER:   ${{ secrets.VERIFIER_NUMBER }}
+          SERVER_URL:        ${{ secrets.SERVER_URL }}
+          SERVER_SECRET:     ${{ secrets.SERVER_SECRET }}
+          CONTROL_ADMIN_TOKEN: ${{ secrets.CONTROL_ADMIN_TOKEN }}
+          SYSTEM_PROMPT:     ${{ secrets.SYSTEM_PROMPT }}
+        run: |
+          set -e
+          upsert() {
+            KEY=$1; VALUE=$2
+            # Delete existing, then create fresh (upsert)
+            curl -sf -X DELETE \
+              "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/env?key=${KEY}&target=production&target=preview&target=development" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" || true
+            curl -sf -X POST \
+              "https://api.vercel.com/v10/projects/${VERCEL_PROJECT_ID}/env" \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"key\":\"${KEY}\",\"value\":\"${VALUE}\",\"type\":\"encrypted\",\"target\":[\"production\",\"preview\",\"development\"]}"
+            echo "  ✔ ${KEY}"
+          }
+          echo "Setting Vercel env vars for project ${VERCEL_PROJECT_ID}..."
+          upsert VAPI_PRIVATE_KEY      "$VAPI_PRIVATE_KEY"
+          upsert COMPANY_NAME          "$COMPANY_NAME"
+          upsert LLM_PROVIDER          "$LLM_PROVIDER"
+          upsert LLM_MODEL             "$LLM_MODEL"
+          upsert VAPI_VOICE_PROVIDER   "$VAPI_VOICE_PROVIDER"
+          upsert VAPI_VOICE_ID         "$VAPI_VOICE_ID"
+          upsert VAPI_VOICE_SPEED      "$VAPI_VOICE_SPEED"
+          upsert STT_PROVIDER          "$STT_PROVIDER"
+          upsert STT_MODEL             "$STT_MODEL"
+          upsert VERIFIER_NUMBER       "$VERIFIER_NUMBER"
+          upsert SERVER_URL            "$SERVER_URL"
+          upsert SERVER_SECRET         "$SERVER_SECRET"
+          upsert CONTROL_ADMIN_TOKEN   "$CONTROL_ADMIN_TOKEN"
+          upsert SYSTEM_PROMPT         "$SYSTEM_PROMPT"
+          echo "All env vars set. Triggering Vercel redeploy..."
+          curl -sf -X POST \
+            "https://api.vercel.com/v13/deployments" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"vapi-control\",\"gitSource\":{\"type\":\"github\",\"repoId\":\"staimoorulhassan/Claude\",\"ref\":\"claude/amazing-dijkstra-NAHUi\"}}" \
+            | python3 -c "import sys,json; d=json.load(sys.stdin); print('Redeployed:', d.get('url',''))" || echo "Redeploy triggered (check Vercel dashboard)"
