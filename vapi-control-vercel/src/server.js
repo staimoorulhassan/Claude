@@ -17,11 +17,12 @@ if (!process.env.VERCEL) {
 const app = express();
 app.use(express.json({ limit: "2mb" }));
 
-const PORT           = process.env.CONTROL_PORT || 8080;
-const ADMIN          = process.env.CONTROL_ADMIN_TOKEN;
-const WEBHOOK_SECRET = process.env.SERVER_SECRET;
-const ASSISTANT_ID   = process.env.VAPI_ASSISTANT_ID;
-const AVR_AMI_URL    = process.env.AVR_AMI_URL || null;
+const PORT             = process.env.CONTROL_PORT || 8080;
+const ADMIN            = process.env.CONTROL_ADMIN_TOKEN;
+const WEBHOOK_SECRET   = process.env.SERVER_SECRET;
+const ASSISTANT_ID     = process.env.VAPI_ASSISTANT_ID;
+const PHONE_NUMBER_ID  = process.env.VAPI_PHONE_NUMBER_ID || null;
+const AVR_AMI_URL      = process.env.AVR_AMI_URL || null;
 
 // Lead storage: /tmp works on Vercel (ephemeral per cold-start — fine for testing;
 // use a DB like Vercel Postgres / PlanetScale / Neon for production).
@@ -58,7 +59,7 @@ async function triggerAMITransfer(uuid, extension, context = "verifier-transfer"
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 app.get("/", (_req, res) => res.json({ service: "vapi-control", status: "ok", assistantId: ASSISTANT_ID || null }));
-app.get("/health", (_req, res) => res.json({ ok: true, assistantId: ASSISTANT_ID || null, vercel: !!process.env.VERCEL }));
+app.get("/health", (_req, res) => res.json({ ok: true, assistantId: ASSISTANT_ID || null, phoneNumberId: PHONE_NUMBER_ID, vercel: !!process.env.VERCEL }));
 
 app.get("/leads", requireAdmin, (_req, res) => {
   try {

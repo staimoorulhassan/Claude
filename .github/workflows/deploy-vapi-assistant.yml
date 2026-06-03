@@ -86,6 +86,7 @@ jobs:
           SERVER_URL:        ${{ secrets.SERVER_URL }}
           SERVER_SECRET:     ${{ secrets.SERVER_SECRET }}
           CONTROL_ADMIN_TOKEN: ${{ secrets.CONTROL_ADMIN_TOKEN }}
+          VAPI_PHONE_NUMBER_ID: ${{ secrets.VAPI_PHONE_NUMBER_ID }}
           SYSTEM_PROMPT:     ${{ secrets.SYSTEM_PROMPT }}
         run: |
           set -e
@@ -116,6 +117,7 @@ jobs:
           upsert SERVER_URL            "$SERVER_URL"
           upsert SERVER_SECRET         "$SERVER_SECRET"
           upsert CONTROL_ADMIN_TOKEN   "$CONTROL_ADMIN_TOKEN"
+          upsert VAPI_PHONE_NUMBER_ID  "$VAPI_PHONE_NUMBER_ID"
           upsert SYSTEM_PROMPT         "$SYSTEM_PROMPT"
           echo "All env vars set. Triggering Vercel redeploy..."
           curl -sf -X POST \
