@@ -1,0 +1,135 @@
+version: "3.9"
+
+# ═══════════════════════════════════════════════════════════
+#  Lead Generation Setup — full AVR stack
+#
+#  ViciDial (autodialer) ──SIP──► avr-asterisk ──AudioSocket──► avr-core
+#                                                                    │ Vapi STT/LLM/TTS
+#                                  avr-ami ◄── avr-app (hub) ◄──────┘
+#                                     │ AMI
+#                              ViciDial Asterisk (3-way transfer)
+# ═══════════════════════════════════════════════════════════
+
+services:
+
+  # ── AVR Asterisk ─────────────────────────────────────────
+  # Accepts inbound SIP from ViciDial, routes calls to AudioSocket → avr-core
+  avr-asterisk:
+    image: ghcr.io/agentvoiceresponse/avr-asterisk:latest
+    container_name: avr-asterisk
+    restart: unless-stopped
+    ports:
+      - "5060:5060/udp"          # SIP — ViciDial connects here
+      - "5060:5060/tcp"
+      - "5038:5038"              # AMI — avr-ami connects here
+      - "8088:8088"              # ARI (optional)
+      - "10000-10100:10000-10100/udp"  # RTP media
+    volumes:
+      - ./asterisk/pjsip.conf:/etc/asterisk/pjsip.conf:ro
+      - ./asterisk/extensions.conf:/etc/asterisk/extensions.conf:ro
+      - ./asterisk/manager.conf:/etc/asterisk/manager.conf:ro
+    environment:
+      - ASTERISK_AMI_SECRET=${AVR_ASTERISK_AMI_SECRET:-avr-ami-2026}
+    networks:
+      - avr-net
+
+  # ── AVR Core (voice pipeline) ─────────────────────────────
+  # AudioSocket receiver → Vapi STS (STT+LLM+TTS) → audio back to Asterisk
+  avr-core:
+    image: ghcr.io/agentvoiceresponse/avr-core:latest
+    container_name: avr-core
+    restart: unless-stopped
+    environment:
+      # Vapi as Speech-to-Speech provider
+      - STS_PROVIDER=vapi
+      - VAPI_PRIVATE_KEY=${VAPI_PRIVATE_KEY}
+      - VAPI_ASSISTANT_ID=${VAPI_ASSISTANT_ID}
+      # avr-asterisk AudioSocket endpoint
+      - AUDIOSOCKET_HOST=avr-asterisk
+      - AUDIOSOCKET_PORT=9093
+      # Notify avr-app when call events happen
+      - APP_WEBHOOK_URL=http://avr-app-backend:3001/webhook/call
+    depends_on:
+      - avr-asterisk
+    networks:
+      - avr-net
+
+  # ── AVR App Backend (NestJS API) ──────────────────────────
+  # Central hub: manages agents, providers, trunks, lead data, transfer logic
+  avr-app-backend:
+    image: ghcr.io/agentvoiceresponse/avr-app-backend:latest
+    container_name: avr-app-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - JWT_SECRET=${AVR_APP_JWT_SECRET:-change-me-jwt-secret}
+      - VAPI_PRIVATE_KEY=${VAPI_PRIVATE_KEY}
+      - VAPI_ASSISTANT_ID=${VAPI_ASSISTANT_ID}
+      - VERIFIER_NUMBER=${VERIFIER_NUMBER}
+      - AVR_AMI_URL=http://avr-ami:3002
+      - SERVER_SECRET=${SERVER_SECRET}
+    volumes:
+      - avr-app-data:/app/data
+    depends_on:
+      - avr-ami
+    networks:
+      - avr-net
+
+  # ── AVR App Frontend (Next.js dashboard) ─────────────────
+  avr-app-frontend:
+    image: ghcr.io/agentvoiceresponse/avr-app-frontend:latest
+    container_name: avr-app-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:3001
+    depends_on:
+      - avr-app-backend
+    networks:
+      - avr-net
+
+  # ── AVR AMI (Asterisk Manager Interface bridge) ───────────
+  # Receives REST commands from avr-app, executes AMI actions on BOTH:
+  #   1. Local avr-asterisk (drop AI off call)
+  #   2. ViciDial Asterisk at VICIDIAL_HOST (trigger 3-way to verifier)
+  avr-ami:
+    image: ghcr.io/agentvoiceresponse/avr-ami:latest
+    container_name: avr-ami
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      # Local Asterisk
+      - AMI_HOST=avr-asterisk
+      - AMI_PORT=5038
+      - AMI_USER=avr-ami
+      - AMI_SECRET=${AVR_ASTERISK_AMI_SECRET:-avr-ami-2026}
+      # ViciDial Asterisk (for 3-way transfer)
+      - VICIDIAL_AMI_HOST=${VICIDIAL_HOST:-46.225.136.17}
+      - VICIDIAL_AMI_PORT=${VICIDIAL_AMI_PORT:-5038}
+      - VICIDIAL_AMI_USER=${VICIDIAL_AMI_USER:-cron}
+      - VICIDIAL_AMI_SECRET=${VICIDIAL_AMI_SECRET}
+    depends_on:
+      - avr-asterisk
+    networks:
+      - avr-net
+
+  # ── AVR Phone (WebRTC softphone — optional for verifier) ──
+  # Browser-based softphone if verifier has no physical phone
+  avr-phone:
+    image: ghcr.io/agentvoiceresponse/avr-phone:latest
+    container_name: avr-phone
+    restart: unless-stopped
+    ports:
+      - "4000:80"
+    networks:
+      - avr-net
+
+volumes:
+  avr-app-data:
+
+networks:
+  avr-net:
+    driver: bridge
