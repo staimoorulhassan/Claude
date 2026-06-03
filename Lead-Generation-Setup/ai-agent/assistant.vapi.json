@@ -1,0 +1,77 @@
+{
+  "_comment": "Vapi assistant template. __TOKENS__ are substituted from config/.env by services/vapi-control at deploy time, so provider/voice/speed/verifier are swappable without editing this file. Keep model.messages[0].content in sync with ai-agent/prompt.md.",
+
+  "name": "Savannah - Pharmacy Lead Qualifier",
+  "firstMessage": "Hi, this is Savannah calling on a recorded line from __COMPANY_NAME__. How are you doing today?",
+  "firstMessageMode": "assistant-speaks-first",
+
+  "model": {
+    "provider": "__LLM_PROVIDER__",
+    "model": "__LLM_MODEL__",
+    "temperature": 0.4,
+    "messages": [
+      {
+        "role": "system",
+        "content": "PASTE_THE_SYSTEM_PROMPT_FROM_ai-agent/prompt.md_HERE. The deploy script will inject ai-agent/prompt.md automatically if PROMPT_FROM_FILE=true."
+      }
+    ],
+    "tools": [
+      {
+        "type": "transferCall",
+        "destinations": [
+          {
+            "type": "number",
+            "number": "__VERIFIER_NUMBER__",
+            "message": "Please hold for just a moment while I connect you to a US verification specialist — don't hang up.",
+            "transferPlan": {
+              "mode": "warm-transfer-with-summary",
+              "summaryPlan": {
+                "enabled": true,
+                "messages": [
+                  {
+                    "role": "system",
+                    "content": "You will summarize the call for the verifier in one or two sentences."
+                  },
+                  {
+                    "role": "user",
+                    "content": "Summarize for the verifier: caller takes prescription meds, is a US resident, is 18+, and is interested in free/low-cost medication delivery. Transcript: {{transcript}}"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+
+  "voice": {
+    "provider": "__VAPI_VOICE_PROVIDER__",
+    "voiceId": "__VAPI_VOICE_ID__",
+    "speed": "__VAPI_VOICE_SPEED__"
+  },
+
+  "transcriber": {
+    "provider": "__STT_PROVIDER__",
+    "model": "__STT_MODEL__",
+    "language": "en"
+  },
+
+  "server": {
+    "url": "__SERVER_URL__",
+    "secret": "__SERVER_SECRET__"
+  },
+
+  "serverMessages": [
+    "end-of-call-report",
+    "status-update",
+    "transfer-destination-request",
+    "hang"
+  ],
+
+  "endCallPhrases": ["goodbye", "have a great day", "take care"],
+  "silenceTimeoutSeconds": 20,
+  "maxDurationSeconds": 600,
+  "backgroundDenoisingEnabled": true,
+  "recordingEnabled": true
+}
