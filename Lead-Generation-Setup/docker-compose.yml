@@ -1,0 +1,111 @@
+# Lead Generation Setup — Full Stack docker-compose (Option C)
+#
+# Starts: Asterisk PBX · avr-ami (call control) · avr-app (dashboard) · avr-phone (verifier softphone) · vapi-control (deploy/swap/webhook)
+# For a lighter start (Options A or B), see docs/architecture.md.
+#
+# Usage:
+#   cp config/.env.example config/.env   # fill in your values
+#   docker compose up -d
+#   open http://localhost:3000           # avr-app dashboard
+#   open http://localhost:3002           # avr-phone (verifier browser softphone)
+#   curl http://localhost:8080/health    # vapi-control
+
+services:
+
+  # ── 1. Asterisk PBX ─────────────────────────────────────────────────────────
+  asterisk:
+    image: agentvoiceresponse/avr-asterisk:latest
+    container_name: avr-asterisk
+    restart: unless-stopped
+    ports:
+      - "5060:5060/udp"           # SIP signaling
+      - "5038:5038"               # AMI (avr-ami connects here)
+      - "8088:8088"               # HTTP / ARI
+      - "10000-10100:10000-10100/udp"   # RTP media (limit range for lower port usage)
+    volumes:
+      - ./asterisk-config:/etc/asterisk:ro
+    environment:
+      TZ: ${TZ:-America/New_York}
+    healthcheck:
+      test: ["CMD", "asterisk", "-rx", "core show version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── 2. avr-ami (call control bridge: REST → AMI → Asterisk) ─────────────────
+  avr-ami:
+    image: agentvoiceresponse/avr-ami:latest
+    container_name: avr-ami
+    restart: unless-stopped
+    ports:
+      - "6006:6006"
+    environment:
+      PORT: 6006
+      AMI_HOST: asterisk            # service name resolves inside compose network
+      AMI_PORT: 5038
+      AMI_USERNAME: ${AMI_USERNAME:-avr}
+      AMI_PASSWORD: ${AMI_PASSWORD:?set AMI_PASSWORD in config/.env}
+    depends_on:
+      asterisk:
+        condition: service_started
+
+  # ── 3. avr-app backend (NestJS + SQLite, port 3001) ─────────────────────────
+  avr-app-backend:
+    image: agentvoiceresponse/avr-app-backend:latest
+    container_name: avr-app-backend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - avr-data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock   # needed for Docker container management
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in config/.env}
+      PORT: 3001
+    depends_on:
+      - asterisk
+      - avr-ami
+
+  # ── 4. avr-app frontend (Next.js 16, port 3000) ─────────────────────────────
+  avr-app-frontend:
+    image: agentvoiceresponse/avr-app-frontend:latest
+    container_name: avr-app-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://avr-app-backend:3001
+    depends_on:
+      - avr-app-backend
+
+  # ── 5. avr-phone (browser softphone for the USA verifier, port 3002) ─────────
+  avr-phone:
+    image: agentvoiceresponse/avr-phone:latest
+    container_name: avr-phone
+    restart: unless-stopped
+    ports:
+      - "3002:80"
+    # The verifier opens http://your-server:3002 in their browser to receive calls.
+    # Configure their PJSIP endpoint in asterisk-config/pjsip.conf and point the
+    # browser phone at wss://your-server:8088/ws.
+
+  # ── 6. vapi-control (deploy assistant + hot-swap providers + webhook) ────────
+  vapi-control:
+    build:
+      context: ./services/vapi-control
+      dockerfile: Dockerfile
+    container_name: vapi-control
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./config/.env
+    environment:
+      AVR_AMI_URL: "http://avr-ami:6006"   # vapi-control can trigger transfers via avr-ami
+      CONTROL_PORT: 8080
+    depends_on:
+      - avr-ami
+
+volumes:
+  avr-data:
+    driver: local

@@ -82,6 +82,37 @@ Caller ⇄ Asterisk ⇄ AudioSocket ⇄ avr-core ⇄ ┌ ASR/STT connector ⇄ p
 - Everything is **provider-swappable** — exactly what we exploit to make "change provider/voice from
   the Vapi API or a webhook" easy.
 
+## avr-app — The Dashboard (full breakdown)
+
+avr-app is a **NestJS + SQLite backend (port 3001) + Next.js 16 frontend (port 3000)** that manages
+the entire stack from one UI. It is **not** in the audio path — it's the control plane.
+
+**What it manages (backend modules):**
+- `agents` — create/start/stop voice agents. Each agent is a set of Docker containers. Two modes:
+  - **PIPELINE** (ASR → LLM → TTS, three containers) — maximum provider flexibility
+  - **STS** (speech-to-speech, one container) — lowest latency, e.g. Vapi via SIP or OpenAI Realtime
+- `providers` — provider configs. Each entry has `type` (ASR/LLM/TTS/STS), `name`, and a flexible
+  `config` JSON (API keys, model names, endpoints). This is how you swap providers without code.
+- `trunks` — SIP trunks: name, password, transport (udp/tcp/tls/wss), codecs (ulaw,alaw).
+- `numbers` — inbound DIDs linked to agents (call routing).
+- `phones` — avr-phone WebRTC softphone devices.
+- `asterisk` — Asterisk AMI integration (call control / transfer).
+- `docker` — manages Docker containers for connector services.
+- `recordings` — call recording.
+- `webhooks` — outbound webhook events (call lifecycle → your CRM / ViciDial).
+- `users` / `auth` — JWT-based login.
+
+**Agent Entity key fields:** `status` (RUNNING/STOPPED/ERROR/STARTING/STOPPING), `mode` (PIPELINE/STS),
+`port`, `httpPort`, `providerAsr`, `providerLlm`, `providerTts`, `providerSts`, `numbers[]`.
+
+**For our campaign:** create an agent in **STS mode** (Vapi as the STS provider) or **PIPELINE mode**
+(self-hosted ASR/LLM/TTS). Add your providers in the dashboard, start the agent, link your DID/SIP
+number, set a webhook to `vapi-control` for lead capture.
+
+See `docs/avr-app-deep-dive.md` for the full entity schema and workflow.
+
+---
+
 ## How this maps to our pharmacy lead-gen campaign
 
 | Campaign need | AVR / Vapi piece |

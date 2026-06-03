@@ -73,5 +73,12 @@
   "silenceTimeoutSeconds": 20,
   "maxDurationSeconds": 600,
   "backgroundDenoisingEnabled": true,
-  "recordingEnabled": true
+  "recordingEnabled": false,
+  "artifactPlan": {
+    "recordingEnabled": false,
+    "videoRecordingEnabled": false,
+    "transcriptPlan": {
+      "enabled": false
+    }
+  }
 }
