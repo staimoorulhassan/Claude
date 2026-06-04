@@ -61,8 +61,8 @@ For now it stays dormant.
 
 | # | Value | Where to get it |
 |---|---|---|
-| 1 | **VERIFIER_NUMBER** = huclose closer-queue **DID** | ViciDial → Inbound → DIDs (the number routed to the huclose in-group) |
-| 2 | **SERVER_URL** = Vercel deployment URL + `/vapi` | Vercel dashboard → your project → Deployments |
+| 1 | **VERIFIER_NUMBER** = `+12233445562` | ✅ confirmed — huclose closer-queue DID |
+| 2 | **SERVER_URL** = `https://claude-13eemnod8-taimors-projects-18132fe2.vercel.app/vapi` | ✅ confirmed — Vercel deployment |
 
 Then:
 1. Run `setup.js` locally (pushes env vars to Vercel), OR set them in the Vercel UI.
