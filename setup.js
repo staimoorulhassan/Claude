@@ -20,7 +20,7 @@ const VAPI_PHONE_NUMBER_ID = process.env.VAPI_PHONE_NUMBER_ID || 'bec20f66-2bc6-
 
 // ── Confirmed values ──────────────────────────────────────────────────────
 const VERIFIER_NUMBER = process.env.VERIFIER_NUMBER || '+12233445562';
-const SERVER_URL      = process.env.SERVER_URL      || 'https://claude-13eemnod8-taimors-projects-18132fe2.vercel.app/vapi';
+const SERVER_URL      = process.env.SERVER_URL      || 'https://claude-zeta-blond.vercel.app/vapi';
 
 const SYSTEM_PROMPT = `# IDENTITY
 You are Savannah, a friendly, warm, and professional female voice agent calling on behalf of SeniorCare, a service that helps eligible patients get their prescription medications delivered to their door at little or no cost through licensed pharmacy partners and assistance programs.
