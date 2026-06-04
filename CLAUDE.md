@@ -9,7 +9,21 @@ A complete outbound lead-generation system for pharmacy free-medication delivery
 - **Lead Generation Hub (AVR)** — the brain (orchestrates everything)
 - **Vapi** — voice AI only (Savannah: STT + LLM + TTS, no telephony)
 
-## Quick mental model
+## Active deployment: Direct to Vapi
+
+The client connection is IPv6/CGNAT (no public IPv4), so the self-hosted Asterisk
+stack can't receive calls from ViciDial. **Active path** (see `docs/deployment.md`):
+
+```
+ViciDial dials lead → sip.vapi.ai (Savannah qualifies)
+  → Vapi webhook → Hub Control API (Vercel) captures lead + returns huclose DID
+    → Vapi transferCall → huclose DID → ViciDial rings verifier
+      → lead ↔ verifier connected, Savannah drops off
+```
+
+The full AVR Docker stack below is the **VPS-only** alternative (dormant for now).
+
+## Full-stack mental model (VPS option)
 
 ```
 ViciDial dials lead
