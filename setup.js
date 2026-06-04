@@ -16,7 +16,8 @@ if (!VAPI_PRIVATE_KEY) { console.error('ERROR: set VAPI_PRIVATE_KEY env var'); p
 // ── Project IDs (not secrets — safe to commit) ────────────────────────────
 const VERCEL_PROJECT_ID  = 'prj_pTwnSIiSdCFBNmVXQMCv99Sg4HdD';
 const VAPI_ASSISTANT_ID  = process.env.VAPI_ASSISTANT_ID  || '37c1cb25-28c7-41b4-bdf0-dcea72331856';
-const VAPI_PHONE_NUMBER_ID = process.env.VAPI_PHONE_NUMBER_ID || 'bec20f66-2bc6-41fc-856f-c51779736e87';
+const VAPI_PHONE_NUMBER_ID = process.env.VAPI_PHONE_NUMBER_ID || '093a1717-c0ac-4917-a0cd-ca434d25641a';
+const VAPI_PHONE_NUMBER     = process.env.VAPI_PHONE_NUMBER    || '+16185515084';
 
 // ── Confirmed values ──────────────────────────────────────────────────────
 const VERIFIER_NUMBER = process.env.VERIFIER_NUMBER || '+12233445562';
@@ -69,6 +70,7 @@ const ENVS = {
   VAPI_PRIVATE_KEY,
   VAPI_ASSISTANT_ID,
   VAPI_PHONE_NUMBER_ID,
+  VAPI_PHONE_NUMBER,
   COMPANY_NAME:        'SeniorCare',
   VERIFIER_NUMBER,
   LLM_PROVIDER:        'openai',
